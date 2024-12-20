@@ -4,11 +4,12 @@ import io
 from fastapi import APIRouter, Request, Depends
 import sqlalchemy
 
-from satop_platform.plugin_engine.plugin import Plugin
+from satop_platform.plugin_engine.plugin import Plugin, register_function
 from satop_platform.components.syslog import models
 from proc_comp.parser import parser
 from proc_comp.codegen.codegen import CodeGen
 
+from uuid import UUID
 
 logger = logging.getLogger('plugin.compilor')
 
@@ -22,18 +23,14 @@ class Compiler(Plugin):
 
         self.api_router = APIRouter()
 
-        super().register_function('compile', self.compile)
-        super().register_function('callMeCrazy', self.callMeCrazy)
+        # super().register_function('compile', self.compile)
 
         # Send in JSON and return compiled code
         @self.api_router.post('/compile', status_code=201, dependencies=[Depends(self.platform_auth.require_login)])
         async def new_compile(flight_plan:dict, request: Request):
-            return await self.compile(flight_plan=flight_plan, request=request)
+            comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan, user_id=request.state.userid)
+            return [comiled_plan, compiled_artifact_id]
             
-    def callMeCrazy(self):
-        print("I am crazy")
-        return "I am crazy"
-        
     def startup(self):
         super().startup()
         logger.info("Running Compilor statup protocol")
@@ -42,9 +39,10 @@ class Compiler(Plugin):
         super().shutdown()
         logger.info(f"'{self.name}' Shutting down gracefully")
 
-    async def compile(self, flight_plan:dict, request: Request):
+    @register_function
+    async def compile(self, flight_plan:dict, user_id:str):
          # Send in JSON and return compiled code
-        flight_plan_as_bytes = io.BytesIO(await request.body())
+        flight_plan_as_bytes = io.BytesIO(str(flight_plan).encode('utf-8'))
         try:
             artifact_in_id = self.sys_log.create_artifact(flight_plan_as_bytes, filename='flight_plan.json').sha1
             logger.info(f"Received new flight plan with artifact ID: {artifact_in_id}")
@@ -55,7 +53,7 @@ class Compiler(Plugin):
 
         
         ## --- Do the actual compilation here ---
-        p = parser.parse(await request.json())
+        p = parser.parse(flight_plan)
         if p is None:
             return {"message": "Error parsing flight plan"}
         
@@ -75,7 +73,7 @@ class Compiler(Plugin):
             relationships=[
                 models.EventObjectRelationship(
                     predicate=models.Predicate(descriptor='startedBy'),
-                    object=models.Entity(type=models.EntityType.user, id=request.state.userid)
+                    object=models.Entity(type=models.EntityType.user, id=user_id)
                     ),
                 models.EventObjectRelationship(
                     predicate=models.Predicate(descriptor='used'),
@@ -95,4 +93,4 @@ class Compiler(Plugin):
 
         logger.info(f"Compiled flight_plan with ID: {artifact_in_id} into CSH with ID: {artifact_out_id}")
 
-        return compiled
+        return compiled, artifact_out_id
