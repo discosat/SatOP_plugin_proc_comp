@@ -28,16 +28,7 @@ class Compiler(Plugin):
         # Send in JSON and return compiled code
         @self.api_router.post('/compile', status_code=201, dependencies=[Depends(self.platform_auth.require_login)])
         async def new_compile(flight_plan:dict, request: Request):
-            
-
-            # print("----")
-
-            # self.callMeCrazy()
-            
-
-            # tct = await self.compile(flight_plan=flight_plan, request=request)
-            # print(tct)
-            return self.compile(flight_plan=flight_plan, request=request)
+            return await self.compile(flight_plan=flight_plan, request=request)
             
     def callMeCrazy(self):
         print("I am crazy")
@@ -53,14 +44,15 @@ class Compiler(Plugin):
 
     async def compile(self, flight_plan:dict, request: Request):
          # Send in JSON and return compiled code
-        logger.info(f"Received new flight plan: {flight_plan}")
-
         flight_plan_as_bytes = io.BytesIO(await request.body())
         try:
             artifact_in_id = self.sys_log.create_artifact(flight_plan_as_bytes, filename='flight_plan.json').sha1
+            logger.info(f"Received new flight plan with artifact ID: {artifact_in_id}")
         except sqlalchemy.exc.IntegrityError as e: 
             # Artifact already exists
             artifact_in_id = e.params[0]
+            logger.info(f"Received existing flight plan with artifact ID: {artifact_in_id}")
+
         
         ## --- Do the actual compilation here ---
         p = parser.parse(await request.json())
@@ -101,6 +93,6 @@ class Compiler(Plugin):
             ]
         ))
 
-        logger.info(f"\nCompiled flight_plan: \n{flight_plan} \nto \n{compiled}")
+        logger.info(f"Compiled flight_plan with ID: {artifact_in_id} into CSH with ID: {artifact_out_id}")
 
         return compiled
