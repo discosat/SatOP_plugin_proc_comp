@@ -4,7 +4,7 @@ import io
 from fastapi import APIRouter, Request, Depends
 import sqlalchemy
 
-from satop_platform.plugin_engine.plugin import Plugin, register_function
+from satop_platform.plugin_engine.plugin import Plugin
 from satop_platform.components.syslog import models
 from proc_comp.parser import parser
 from proc_comp.codegen.codegen import CodeGen
@@ -39,7 +39,7 @@ class Compiler(Plugin):
         super().shutdown()
         logger.info(f"'{self.name}' Shutting down gracefully")
 
-    @register_function
+    @Plugin.register_function
     async def compile(self, flight_plan:dict, user_id:str):
          # Send in JSON and return compiled code
         flight_plan_as_bytes = io.BytesIO(str(flight_plan).encode('utf-8'))
