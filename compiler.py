@@ -1,6 +1,7 @@
 import os
 import logging
 import io
+from pydantic import BaseModel
 from fastapi import APIRouter, Request, Depends
 import sqlalchemy
 
@@ -12,6 +13,40 @@ from proc_comp.codegen.codegen import CodeGen
 from uuid import UUID
 
 logger = logging.getLogger('plugin.compilor')
+
+class FlightPlanInstructions(BaseModel):
+    commands: dict
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "repeat-n",
+                    "count": 10,
+                    "body": [
+                        {
+                            "name": "gpio-write",
+                            "pin": 16,
+                            "value": 1
+                        },
+                        {
+                            "name": "wait-sec",
+                            "duration": 1
+                        },
+                        {
+                            "name": "gpio-write",
+                            "pin": 16,
+                            "value": 0
+                        },
+                        {
+                            "name": "wait-sec",
+                            "duration": 1
+                        }
+                    ]
+                }        
+            ]
+        }
+    }
 
 class Compiler(Plugin):
     def __init__(self, *args, **kwargs):
@@ -27,8 +62,16 @@ class Compiler(Plugin):
 
         # Send in JSON and return compiled code
         @self.api_router.post('/compile', status_code=201, dependencies=[Depends(self.platform_auth.require_login)])
-        async def new_compile(flight_plan:dict, request: Request):
-            comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan, user_id=request.state.userid)
+        async def new_compile(flight_plan_instructions:FlightPlanInstructions, request: Request):
+            """Takes a flight plan and compiles it into CSH
+
+            Args:
+                flight_plan_instructions (dict): The flight plan to be compiled.
+
+            Returns:
+                (dict, UUID): The compiled code and artifact ID for the compiled code.
+            """
+            comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan_instructions.commands, user_id=request.state.userid)
             return [comiled_plan, compiled_artifact_id]
             
     def startup(self):
@@ -41,6 +84,15 @@ class Compiler(Plugin):
 
     @Plugin.register_function
     async def compile(self, flight_plan:dict, user_id:str):
+        """Compile a flight plan into CSH
+
+        Args:
+            flight_plan (dict): The flight plan to be compiled.
+            user_id (str): The ID of the user who submitted the flight plan.
+
+        Returns:
+            (dict, UUID): The compiled code and artifact ID for the compiled code.
+        """
          # Send in JSON and return compiled code
         flight_plan_as_bytes = io.BytesIO(str(flight_plan).encode('utf-8'))
         try:
