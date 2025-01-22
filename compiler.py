@@ -15,34 +15,36 @@ from uuid import UUID
 logger = logging.getLogger('plugin.compilor')
 
 class FlightPlanInstructions(BaseModel):
-    commands: dict
+    instructions: dict
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "name": "repeat-n",
-                    "count": 10,
-                    "body": [
-                        {
-                            "name": "gpio-write",
-                            "pin": 16,
-                            "value": 1
-                        },
-                        {
-                            "name": "wait-sec",
-                            "duration": 1
-                        },
-                        {
-                            "name": "gpio-write",
-                            "pin": 16,
-                            "value": 0
-                        },
-                        {
-                            "name": "wait-sec",
-                            "duration": 1
-                        }
-                    ]
+                    "instructions": {
+                        "name": "repeat-n",
+                        "count": 10,
+                        "body": [
+                            {
+                                "name": "gpio-write",
+                                "pin": 16,
+                                "value": 1
+                            },
+                            {
+                                "name": "wait-sec",
+                                "duration": 1
+                            },
+                            {
+                                "name": "gpio-write",
+                                "pin": 16,
+                                "value": 0
+                            },
+                            {
+                                "name": "wait-sec",
+                                "duration": 1
+                            }
+                        ]
+                    }
                 }        
             ]
         }
@@ -69,9 +71,9 @@ class Compiler(Plugin):
                 flight_plan_instructions (dict): The flight plan to be compiled.
 
             Returns:
-                (dict, UUID): The compiled code and artifact ID for the compiled code.
+                (list(dict, UUID)): The compiled code and artifact ID for the compiled code.
             """
-            comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan_instructions.commands, user_id=request.state.userid)
+            comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan_instructions.instructions, user_id=request.state.userid)
             return [comiled_plan, compiled_artifact_id]
             
     def startup(self):
@@ -91,7 +93,7 @@ class Compiler(Plugin):
             user_id (str): The ID of the user who submitted the flight plan.
 
         Returns:
-            (dict, UUID): The compiled code and artifact ID for the compiled code.
+            (list(dict, UUID)): The compiled code and artifact ID for the compiled code.
         """
          # Send in JSON and return compiled code
         flight_plan_as_bytes = io.BytesIO(str(flight_plan).encode('utf-8'))
