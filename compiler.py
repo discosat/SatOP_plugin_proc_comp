@@ -20,32 +20,58 @@ class FlightPlanInstructions(BaseModel):
     model_config = {
         "json_schema_extra": {
             "examples": [
-                {
-                    "instructions": {
-                        "name": "repeat-n",
-                        "count": 10,
+                {   
+                    "instructions": 
+                    {
+                        "name": "commands",
                         "body": [
                             {
-                                "name": "gpio-write",
-                                "pin": 16,
-                                "value": 1
-                            },
-                            {
-                                "name": "wait-sec",
-                                "duration": 1
-                            },
-                            {
-                                "name": "gpio-write",
-                                "pin": 16,
-                                "value": 0
-                            },
-                            {
-                                "name": "wait-sec",
-                                "duration": 1
+                                "name": "repeat-n",
+                                "count": 10,
+                                "body": [
+                                    {
+                                        "name": "gpio-write",
+                                        "pin": 16,
+                                        "value": 1
+                                    },
+                                    {
+                                        "name": "wait-sec",
+                                        "duration": 1
+                                    },
+                                    {
+                                        "name": "gpio-write",
+                                        "pin": 16,
+                                        "value": 0
+                                    },
+                                    {
+                                        "name": "wait-sec",
+                                        "duration": 1
+                                    }
+                                ]
                             }
                         ]
                     }
-                }        
+                }  
+            ]
+        }
+    }
+
+class CompiledInstructions(BaseModel):
+    instructions: list
+    artifact_id: str
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "instructions": [
+                        "gpio_write(16, 1);",
+                        "wait_sec(1);",
+                        "gpio_write(16, 0);",
+                        "wait_sec(1);"
+                    ],
+                    "artifact_id": "b7f1c0b9b6f3b2e1f0c0b9b6f3b2e1f0"
+                }
             ]
         }
     }
@@ -66,14 +92,18 @@ class Compiler(Plugin):
         @self.api_router.post(
                 '/compile', 
                 summary="Compile a flight plan into CSH.",
-                description="Takes a flight plan and compiles it into CSH.",
+                description="Takes a flight plan and compiles it into CSH. The flight plan is a JSON object that describes the sequence of commands to be executed and MUST start with 'instructions: {the instructions in question}'.",
                 response_description="The compiled code and artifact ID for the compiled code.",
                 status_code=201, 
                 dependencies=[Depends(self.platform_auth.require_login)]
                 )
-        async def new_compile(flight_plan_instructions:FlightPlanInstructions, request: Request):
+        async def new_compile(flight_plan_instructions:FlightPlanInstructions, request: Request) -> CompiledInstructions:
             comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan_instructions.instructions, user_id=request.state.userid)
-            return [comiled_plan, compiled_artifact_id]
+
+            return CompiledInstructions(
+                instructions = comiled_plan,
+                artifact_id= compiled_artifact_id
+            )
             
     def startup(self):
         super().startup()
