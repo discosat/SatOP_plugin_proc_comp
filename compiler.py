@@ -63,16 +63,15 @@ class Compiler(Plugin):
         # super().register_function('compile', self.compile)
 
         # Send in JSON and return compiled code
-        @self.api_router.post('/compile', status_code=201, dependencies=[Depends(self.platform_auth.require_login)])
+        @self.api_router.post(
+                '/compile', 
+                summary="Compile a flight plan into CSH.",
+                description="Takes a flight plan and compiles it into CSH.",
+                response_description="The compiled code and artifact ID for the compiled code.",
+                status_code=201, 
+                dependencies=[Depends(self.platform_auth.require_login)]
+                )
         async def new_compile(flight_plan_instructions:FlightPlanInstructions, request: Request):
-            """Takes a flight plan and compiles it into CSH
-
-            Args:
-                flight_plan_instructions (dict): The flight plan to be compiled.
-
-            Returns:
-                (list(dict, UUID)): The compiled code and artifact ID for the compiled code.
-            """
             comiled_plan, compiled_artifact_id = await self.compile(flight_plan=flight_plan_instructions.instructions, user_id=request.state.userid)
             return [comiled_plan, compiled_artifact_id]
             
